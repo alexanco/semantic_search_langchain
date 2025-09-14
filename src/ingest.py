@@ -1,46 +1,46 @@
 import os
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_postgres import PGVector
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 
 # Configurar o caminho absoluto do PDF
 PDF_PATH = os.getenv("PDF_PATH")
 
+
 def ingest_pdf():
-    
+
     if not PDF_PATH:
         raise ValueError("PDF_PATH is not set")
-    
+
     docs = PyPDFLoader(str(PDF_PATH)).load()
 
     splits = RecursiveCharacterTextSplitter(
-        chunk_size=1000, 
-        chunk_overlap=150, add_start_index=False).split_documents(docs)
-    
+        chunk_size=1000, chunk_overlap=150, add_start_index=False
+    ).split_documents(docs)
+
     if not splits:
         raise SystemExit(0)
 
     enriched = [
         Document(
             page_content=d.page_content,
-            metadata={k: v for k, v in d.metadata.items() if v not in ("", None)}
+            metadata={k: v for k, v in d.metadata.items() if v not in ("", None)},
         )
         for d in splits
-    ]    
+    ]
 
     ids = [f"doc-{i}" for i in range(len(enriched))]
 
     embeddings = GoogleGenerativeAIEmbeddings(
         model=os.getenv("GOOGLE_EMBEDDING_MODEL", "models/embedding-001").strip("'\""),
-        google_api_key=os.getenv("GOOGLE_API_KEY")
+        google_api_key=os.getenv("GOOGLE_API_KEY"),
     )
-
 
     store = PGVector(
         embeddings=embeddings,
@@ -54,8 +54,13 @@ def ingest_pdf():
 
 if __name__ == "__main__":
 
-    for k in ("GOOGLE_API_KEY", "DATABASE_URL","PG_VECTOR_COLLECTION_NAME", "PDF_PATH"):
+    for k in (
+        "GOOGLE_API_KEY",
+        "DATABASE_URL",
+        "PG_VECTOR_COLLECTION_NAME",
+        "PDF_PATH",
+    ):
         if not os.getenv(k):
             raise RuntimeError(f"Environment variable {k} is not set")
-    
+
     ingest_pdf()
